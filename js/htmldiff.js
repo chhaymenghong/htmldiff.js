@@ -31,12 +31,20 @@
     return char === '>';
   }
 
+
   function is_start_of_tag(char){
     return char === '<';
+  }
+  function is_start_of_close_tag(char){
+    return char === '</';
   }
 
   function is_whitespace(char){
     return /^\s+$/.test(char);
+  }
+
+  function self_closing_tags(token){
+    return /(<img)|(<input)/.test(token);
   }
 
   function is_tag(token){
@@ -58,7 +66,7 @@
    *    null otherwise
    */
   function is_start_of_atomic_tag(word){
-    var result = /^<(iframe|object|math|svg|script|figure)/.exec(word);
+    var result = /^<(iframe|object|math|svg|script)/.exec(word);
     if (result){
       result = result[1];
     }
@@ -118,13 +126,67 @@
   }
 
   /*
+   * Merge tokens in component by regex role.
+   *
+   * @param {find_regex_rules} dictate witch tag we want to merge.
+   *
+   *
+   * @param {ignore_regex_rules} dictate witch tag we want to ignore while merging.
+   *
+   *
+   * @param {words Array.<string>} input data already  parsed array(html tags) by html_tokens method.
+   *
+   * @return {Array.<string>} The list of tokens with merged components requested by component_search_role.
+   */
+  function merge_html_by_class(find_regex_rules, ignore_regex_rules, words) {
+    var mergedWordsArray = [],
+      mergedWordsToString = '',
+      count_open_tags = 0;
+
+    for (var i = 0; i < words.length; i++) {
+      var tag_part = words[i],
+        //create regex condition from string for merging
+        find_regex = new RegExp(find_regex_rules,'gi'),
+        isFoundTagPart = find_regex.test(tag_part),
+        ignore_regex,
+        isIgnoreTagPart;
+      //create regex condition from string for ignoring tags while merging in progress, if condition exist
+      if(ignore_regex_rules !== ''){
+        ignore_regex = new RegExp(ignore_regex_rules,'gi');
+        isIgnoreTagPart = ignore_regex.test(tag_part);
+      }else{
+        isIgnoreTagPart=false;
+      }
+      //merge html tags until parent tag is not closed (also ignore self closed html tags)
+      if (!isIgnoreTagPart && (isFoundTagPart || count_open_tags > 0) ) {
+        if (is_start_of_tag(tag_part.slice(0, 1)) && !is_start_of_close_tag(tag_part.slice(0, 2)) &&  !self_closing_tags(tag_part)) {
+          count_open_tags = count_open_tags + 1;
+        } else if (is_start_of_tag(tag_part.slice(0, 1)) &&  !self_closing_tags(tag_part)) {
+          count_open_tags = count_open_tags - 1;
+        }
+        //combine all html string from html tokens while all condition are true
+        mergedWordsToString += tag_part;
+
+        if (count_open_tags === 0) {
+          //after parent tag is closed push as one html token
+          mergedWordsArray.push(mergedWordsToString);
+        }
+      } else {
+        //all tags that are not part of components we wont to merge just ignore
+        mergedWordsArray.push(tag_part);
+      }
+    }
+    return mergedWordsArray;
+  }
+
+  /*
    * Tokenizes a string of HTML.
    *
    * @param {string} html The string to tokenize.
    *
    * @return {Array.<string>} The list of tokens.
    */
-  function html_to_tokens(html){
+  function html_to_tokens(html,component_search_roles){
     var mode = 'char';
     var current_word = '';
     var current_atomic_tag = '';
@@ -211,6 +273,13 @@
     }
     if (current_word){
       words.push(current_word);
+    }
+
+
+    for (var i = 0; i < component_search_roles.length; i++) {
+      var role = component_search_roles[i];
+      words=merge_html_by_class(role.regex,role.not, words);
+
     }
     return words;
   }
@@ -602,16 +671,18 @@
    *
    * @return {string} The combined HTML content with differences wrapped in <ins> and <del> tags.
    */
-  function diff(before, after, class_name){
+
+  function diff(before, after, component_search_roles, class_name){
     if (before === after) return before;
 
-    before = html_to_tokens(before);
-    after = html_to_tokens(after);
+    before = html_to_tokens(before, component_search_roles);
+    after = html_to_tokens(after, component_search_roles);
     var ops = calculate_operations(before, after);
     return render_operations(before, after, ops, class_name);
   }
 
   diff.html_to_tokens = html_to_tokens;
+  diff.merge_html_by_class = merge_html_by_class;
   diff.find_matching_blocks = find_matching_blocks;
   find_matching_blocks.find_match = find_match;
   find_matching_blocks.create_index = create_index;
