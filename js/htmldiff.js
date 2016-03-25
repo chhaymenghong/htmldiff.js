@@ -175,7 +175,7 @@
         //combine all html string from html tokens while all condition are true
         mergedWordsToString += tag_part;
 
-        if (last_count_open_tags<=count_open_tags || count_open_tags === 0) {
+        if ((count_open_tags===1 && last_count_open_tags>count_open_tags) || count_open_tags === 0) {
           //after parent tag is closed push as one html token
           mergedWordsArray.push(mergedWordsToString);
           mergedWordsToString = '';
