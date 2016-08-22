@@ -35,19 +35,12 @@
     return char === '<';
   }
 
-  function is_start_of_close_tag(char) {
-    return char === '</';
+  function is_close_tag(tag) {
+    return /^\s*<\s*\/[^>]+>\s*$/.test(tag);
   }
 
   function is_whitespace(char) {
     return /^\s+$/.test(char);
-  }
-
-  function self_closing_tags(token) {
-    return /(<img)|(<input)/.test(token);
-  }
-  function is_mearge_tag(tag_part) {
-    return /^(?:<(\w+)(?:(?:\s+\w+(?:\s*=\s*(?:".*?"|'.*?'|[^'">\s]+))?)+\s*|\s*)>[^<>]*<\/\1+\s*>|<\w+(?:(?:\s+\w+(?:\s*=\s*(?:".*?"|'.*?'|[^'">\s]+))?)+\s*|\s*)\/>|<!--.*?-->|[^<>]+)*$/.test(tag_part);
   }
 
   function is_tag(token) {
@@ -68,13 +61,9 @@
    * @return {string|null} The name of the atomic tag if the word will be an atomic tag,
    *    null otherwise
    */
-  var atomic_tag='^<(object|math|svg|script)';
   function is_start_of_atomic_tag(word) {
-
-    var find_regex = new RegExp(atomic_tag, 'gi');
-    result= find_regex.exec(word);
-
-    if (result) {
+    var result = /^<(iframe|object|math|svg|script)/.exec(word);
+    if (result){
       result = result[1];
     }
     return result;
@@ -133,60 +122,37 @@
   }
 
   /*
-   * Merge tokens in component by regex role.
+   * Merge tokens in component by regex rule.
    *
-   * @param {find_regex_rules} dictate witch tag we want to merge.
-   *
-   *
-   * @param {ignore_regex_rules} dictate witch tag we want to ignore while merging.
-   *
-   *
+   * @param {find_regex} dictate witch tag we want to merge.
    * @param {words Array.<string>} input data already  parsed array(html tags) by html_tokens method.
-   *
    * @return {Array.<string>} The list of tokens with merged components requested by component_search_role.
    */
-  function merge_html_by_class(find_regex_rules, ignore_regex_rules, words) {
-    var mergedWordsArray = [],
-        mergedWordsToString = '',
+  function merge_html_by_class(find_regex, words) {
+    var merged_words_array = [],
+        merged_words_to_string = '',
         count_open_tags = 0;
 
     for (var i = 0; i < words.length; i++) {
-      var tag_part = words[i],
-      //create regex condition from string for merging
-          find_regex = new RegExp(find_regex_rules, 'gi'),
-          isFoundTagPart = find_regex.test(tag_part),
-          ignore_regex,
-          last_count_open_tags,
-          isIgnoreTagPart;
-      //create regex condition from string for ignoring tags while merging in progress, if condition exist
-      if (ignore_regex_rules !== '') {
-        ignore_regex = new RegExp(ignore_regex_rules, 'gi');
-        isIgnoreTagPart = ignore_regex.test(tag_part);
-      } else {
-        isIgnoreTagPart = false;
-      }
+      var tag_part = words[i];
       //merge html tags until parent tag is not closed (also ignore self closed html tags)
-      if (!isIgnoreTagPart && (isFoundTagPart || count_open_tags > 0)) {
-        if (!is_mearge_tag(tag_part) && is_start_of_tag(tag_part.slice(0, 1)) && !is_start_of_close_tag(tag_part.slice(0, 2)) && !self_closing_tags(tag_part)) {
-          count_open_tags = count_open_tags + 1;
-        } else if (!is_mearge_tag(tag_part) && is_start_of_tag(tag_part.slice(0, 1)) && !self_closing_tags(tag_part)) {
-          count_open_tags = count_open_tags - 1;
+      if (count_open_tags > 0 || find_regex.test(tag_part)) {
+        if (is_start_of_tag(tag_part.slice(0, 1)) && !is_void_tag(tag_part)) {
+          count_open_tags += is_close_tag(tag_part) ? -1 : 1;
         }
         //combine all html string from html tokens while all condition are true
-        mergedWordsToString += tag_part;
-
-        if ((count_open_tags===1 && last_count_open_tags>count_open_tags) || count_open_tags === 0) {
-          //after parent tag is closed push as one html token
-          mergedWordsArray.push(mergedWordsToString);
-          mergedWordsToString = '';
+        merged_words_to_string += tag_part;
+        //after parent tag is closed push as one html token
+        if (count_open_tags === 0) {
+          merged_words_array.push(merged_words_to_string);
+          merged_words_to_string = '';
         }
-        last_count_open_tags=count_open_tags;
       } else {
         //all tags that are not part of components we wont to merge just ignore
-        mergedWordsArray.push(tag_part);
+        merged_words_array.push(tag_part);
       }
     }
-    return mergedWordsArray;
+    return merged_words_array;
   }
 
   /*
@@ -196,7 +162,7 @@
    *
    * @return {Array.<string>} The list of tokens.
    */
-  function html_to_tokens(html, component_search_roles) {
+  function html_to_tokens(html, components_search_rule) {
     var mode = 'char';
     var current_word = '';
     var current_atomic_tag = '';
@@ -285,12 +251,7 @@
       words.push(current_word);
     }
 
-    for (var i = 0; i < component_search_roles.length; i++) {
-      var role = component_search_roles[i];
-      words = merge_html_by_class(role.regex, role.not, words);
-
-    }
-    return words;
+    return components_search_rule ? merge_html_by_class(components_search_rule, words) : words;
   }
 
   /*
@@ -669,91 +630,43 @@
     }
     return rendering;
   }
-  /*
-   * Checking if two object are equals
-   * @param {Object} first object you want to compare.
-   * @param {Object} second object you want to compare.
+
+  /**
+   * htmldiff thinks that atomic or component objects are equal if their tag names are the same, because of it <div class="slideshow"> === <div class="here"> for example
+   * this function compares them
    */
-  function isEquivalent(a, b) {
-    // Create arrays of property names
-    var aProps = Object.getOwnPropertyNames(a);
-    var bProps = Object.getOwnPropertyNames(b);
-
-    // If number of properties is different,
-    // objects are not equivalent
-    if (aProps.length != bProps.length) {
-      return false;
-    }
-
-    for (var i = 0; i < aProps.length; i++) {
-      var propName = aProps[i];
-
-      // If values of same property are not equal,
-      // objects are not equivalent
-      if (a[propName] !== b[propName]) {
-        return false;
-      }
-    }
-
-    // If we made it this far, objects
-    // are considered equivalent
-    return true;
-  }
-  /*
-   * @param {Array.<string>} before The before list of tokens.
-   * @param {Array.<string>} after The after list of tokens.
-   * @param {Array.<Object>} operations The list of operations to transform the before
-   *      list of tokens into the after list of tokens, where each operation has the
-   *      following keys:
-   */
-  function findComponentWithDifferentContent(ops, before, after) {
-    var firstAlwaysEqual = {
-      action: "equal",
-      start_in_before: 0,
-      end_in_before: 0,
-      start_in_after: 0,
-      end_in_after: 0
-    };
-    var readyForRender = [];
-    /*
-     * Look ops or all equal components and index range
-     */
-    for (var z = 0; z < ops.length; z++) {
-      var op = ops[z];
-      var compare = {
-        before: [],
-        after: []
-      };
-      /*Equal tokens start re-investigate status action */
-      if (!isEquivalent(op, firstAlwaysEqual) && op.action === 'equal') {
-        for (var i = 0; i < before.length; i++) {
-          var token = before[i];
-          /*Find range equal tokens in before*/
-          if (i > op.start_in_before && i < op.end_in_before) {
-            compare.before.push(token);
-          }
-        }
-        /*
-         * Locate tokens index  from start  to and and and compare length (different length mean is not equal token) */
-        for (var j = 0; j < after.length; j++) {
-          var token = after[j];
-          /*Find range equal tokens in before*/
-          if (j > op.start_in_after && j < op.end_in_after) {
-            compare.after.push(token);
-            /*Compare equal tokens in before and after by length size*/
-            if (compare.before.length && compare.before[compare.after.length - 1].length !== compare.after[compare.after.length - 1].length) {
-              readyForRender.push({
-                before: compare.before[compare.after.length - 1],
-                after: compare.after[compare.after.length - 1],
-                index: j
-              });
+  function render_equal_components(before, after, ops, class_name, components_search_rule) {
+    var i, j, r, attrs;
+    var op;
+    var amount;
+    var before_token, after_token;
+    var before_token_match, after_token_match;
+    for (i = 0; i < ops.length; i++) {
+      op = ops[i];
+      if (op.action === 'equal') {
+        amount = op.end_in_before - op.start_in_before;
+        for (j = 0; j < amount; j++) {
+          before_token = before[op.start_in_before + j];
+          after_token = after[op.start_in_after + j];
+          if (before_token !== after_token) {
+            before_token_match = components_search_rule.exec(before_token);
+            after_token_match = components_search_rule.exec(after_token);
+            if (before_token_match && after_token_match) {
+              if (before_token_match[1].toLowerCase() === after_token_match[1].toLowerCase()) {
+                // compare content of these two same components
+                r = diff(before_token, after_token, class_name);
+                after[op.start_in_after + j] = r;
+              } else {
+                // components are different, wrap before by 'del' and after by 'ins'
+                attrs = class_name ? ' class="' + class_name + '"' : '';
+                r = '<del' + attrs + '>' + before_token + '</del>' + '<ins' + attrs + '>' + after_token + '</ins>';
+                after[op.start_in_after + j] = r;
+              }
             }
           }
         }
       }
-
     }
-    return readyForRender;
   }
 
   /*
@@ -766,31 +679,17 @@
    *
    * @return {string} The combined HTML content with differences wrapped in <ins> and <del> tags.
    */
-
-  function diff(before, after, component_search_roles, one_step_deeper_in_component, class_name ) {
+  function diff(before, after, class_name, components_search_rule) {
     if (before === after) return before;
-
-    before = html_to_tokens(before, component_search_roles);
-    after = html_to_tokens(after, component_search_roles);
+    before = html_to_tokens(before, components_search_rule);
+    after = html_to_tokens(after, components_search_rule);
     var ops = calculate_operations(before, after);
-    /*
-     * Find all components that was merged by merge_html_by_class() and component_search_roles but with diff content for example caption (captions are ignored in initial component_search_roles)
-     */
-    var componentWithDifferentContent=[];
-    if(!one_step_deeper_in_component){
-      componentWithDifferentContent = findComponentWithDifferentContent(ops, before, after);
-    }
-    /*
-     * Replace component with different content in initial after and before.
-     * They will be ignored because action status is equal */
-    for (var i = 0; i < componentWithDifferentContent.length; i++) {
-      var compare = componentWithDifferentContent[i];
-      var reRender = diff(compare.before, compare.after, [],true);
-      before[compare.index] = reRender;
-      after[compare.index] = reRender;
-    }
-    return render_operations(before, after, ops, class_name);
 
+    if (components_search_rule) {
+      render_equal_components(before, after, ops, class_name, components_search_rule);
+    }
+
+    return render_operations(before, after, ops, class_name);
   }
 
   diff.html_to_tokens = html_to_tokens;
