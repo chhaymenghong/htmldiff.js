@@ -1,6 +1,6 @@
 {
   "name": "htmldiff",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "HTML Diffing in JavaScript",
   "main": "js/htmldiff.js",
   "scripts": {
@@ -8,10 +8,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git://github.com/tnwinc/htmldiff.js.git"
+    "url": "git://github.com/WoodWing/htmldiff.js.git"
   },
   "issues": {
-    "url": "https://github.com/tnwinc/htmldiff.js/issues"
+    "url": "https://github.com/WoodWing/htmldiff.js/issues"
   },
   "keywords": [
     "diff",
@@ -25,6 +25,9 @@
     "jasmine-node": "^1.14.5",
     "mocha": "*"
   },
-  "author": "The Network Inc.",
+  "author": [
+    "The Network Inc.",
+    "Woodwing Software"
+  ],
   "license": "MIT (Expat)"
 }
