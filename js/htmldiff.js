@@ -137,7 +137,7 @@
       var tag_part = words[i];
       //merge html tags until parent tag is not closed (also ignore self closed html tags)
       if (count_open_tags > 0 || find_regex.test(tag_part)) {
-        if (is_start_of_tag(tag_part.slice(0, 1)) && !is_void_tag(tag_part)) {
+        if (is_start_of_tag(tag_part.slice(0, 1)) && !is_void_tag(tag_part) && !is_start_of_atomic_tag(tag_part)) {
           count_open_tags += is_close_tag(tag_part) ? -1 : 1;
         }
         //combine all html string from html tokens while all condition are true
