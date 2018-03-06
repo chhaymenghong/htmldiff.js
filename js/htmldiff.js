@@ -95,7 +95,7 @@
   }
 
   function is_img_tag_without_closing_slash(token) {
-    return /<img([\w\W]+?)>/
+    return /<img([\w\W]+?)>/.test(token);
   }
 
   /*
