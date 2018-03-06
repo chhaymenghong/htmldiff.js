@@ -258,7 +258,8 @@
    * Creates a key that should be used to match tokens. This is useful, for example, if we want
    * to consider two open tag tokens as equal, even if they don't have the same attributes. We
    * use a key instead of overwriting the token because we may want to render the original string
-   * without losing the attributes.
+   * without losing the attributes. img tag is an exception because we want to show the difference of two
+   * images when they have different src attributes.
    *
    * @param {string} token The token to create the key for.
    *
@@ -266,7 +267,7 @@
    */
   function get_key_for_token(token) {
     var tag_name = /<([^\s>]+)[\s>]/.exec(token);
-    if (tag_name) {
+    if (tag_name && tag_name[1] !== 'img') {
       return '<' + (tag_name[1].toLowerCase()) + '>';
     }
     if (token) {
