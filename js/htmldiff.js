@@ -94,6 +94,10 @@
     return /^\s*<[^>]+\/>\s*$/.test(token);
   }
 
+  function is_img_tag_without_closing_slash(token) {
+    return /<img([\w\W]+?)>/
+  }
+
   /*
    * Checks if a token can be wrapped inside a tag.
    *
@@ -102,7 +106,7 @@
    * @return {boolean} True if the token can be wrapped inside a tag, false otherwise.
    */
   function is_wrappable(token) {
-    return isnt_tag(token) || is_start_of_atomic_tag(token) || is_void_tag(token);
+    return isnt_tag(token) || is_start_of_atomic_tag(token) || is_void_tag(token) || is_img_tag_without_closing_slash(token);
   }
 
   /*
